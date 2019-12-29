@@ -39,7 +39,7 @@ last_marks, last_marks_name, description, marks_avg, marks_avg_name, avg = [], [
 red_names, red_marks = [], []
 
 
-def website(data):
+def website(data, web_url):
     global last_marks
     global last_marks_name
     global description
@@ -48,7 +48,7 @@ def website(data):
     global avg
     global red_marks
     global red_names
-    web = requests.post('https://lo3bielsko.mobidziennik.pl/mobile/glowna', data=data)
+    web = requests.post(f'https://{web_url}.mobidziennik.pl/mobile/glowna', data=data)
     tree = html.fromstring(web.content)
     last_marks = tree.xpath('//td[@class="page-dz-home-hist-cnt text-center"]/../..')[0]
     last_marks = last_marks.getchildren()
@@ -62,14 +62,14 @@ def website(data):
     last_marks = [mark for mark in last_marks if isinstance(mark, str)]
     last_marks = SpaceRemover(last_marks)
     last_marks_name = SpaceRemover(last_marks_name)
-    web = requests.post('https://lo3bielsko.mobidziennik.pl/mobile/oceny', data=data)
+    web = requests.post(f'https://{web_url}.mobidziennik.pl/mobile/oceny', data=data)
     tree = html.fromstring(web.content)
     marks_avg = tree.xpath('//td[@class="text-right"]/text()')
     marks_avg = SpaceRemover(marks_avg)
     marks_avg_name = tree.xpath('//tr[@class="subject"]/td/text()')
     marks_avg_name = SpaceRemover(marks_avg_name)
 
-    web = requests.post('https://lo3bielsko.mobidziennik.pl/mobile/oceny?semestr=1&koncowe', data=data)
+    web = requests.post(f'https://{web_url}.mobidziennik.pl/mobile/oceny?semestr=1&koncowe', data=data)
     tree = html.fromstring(web.content)
     path = tree.xpath('//td[@class="text-right"]')
     for x in path:
@@ -110,11 +110,14 @@ try:
         login = file.readline()[:-1]
         login = f.decrypt(login)
         login = login.decode()
-        password = file.readline()
+        password = file.readline()[:-1]
         password = f.decrypt(password)
         password = password.decode()
         data = {'login': login, 'haslo': password}
-        website(data)
+        web_url = file.readline()
+        web_url = f.decrypt(web_url)
+        web_url = web_url.decode()
+        website(data, web_url)
 except FileNotFoundError:
     isFile = False
 
@@ -185,6 +188,13 @@ class SignInWindow(Screen):
         self.name = "sign in"
         box_main = BoxLayout(orientation='vertical', padding=50, spacing=100)
         box_main.add_widget(Widget(size_hint_y=None, height=200))
+        web_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=70, pos_hint={'top': 1})
+        web_label = Label(text='Adres:')
+        self.web_url = TextInput(multiline=False, size_hint_x=None, width=400)
+        web_end = Label(text='.mobidziennik.pl', size_hint_x=None, width=400)
+        web_box.add_widget(web_label)
+        web_box.add_widget(self.web_url)
+        web_box.add_widget(web_end)
         login_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=70, pos_hint={'top': 1})
         login_label = Label(text='Login:')
         self.login_input = TextInput(multiline=False)
@@ -196,6 +206,7 @@ class SignInWindow(Screen):
         self.password_input = TextInput(multiline=False, password=True)
         password_box.add_widget(password_label)
         password_box.add_widget(self.password_input)
+        box_main.add_widget(web_box)
         box_main.add_widget(login_box)
         box_main.add_widget(password_box)
 
@@ -206,11 +217,12 @@ class SignInWindow(Screen):
 
     def sign(self, *args):
         data = {'login': self.login_input.text, 'haslo': self.password_input.text}
-        web = requests.post('https://lo3bielsko.mobidziennik.pl/mobile/glowna', data=data)
+        web_url = self.web_url.text
+        web = requests.post(f'https://{web_url}.mobidziennik.pl/mobile/glowna', data=data)
         tree = html.fromstring(web.content)
         test = tree.xpath('//div[@id="p-login-info-text"]/text()')
         if not test:
-            website(data)
+            website(data, web_url)
             key = Fernet.generate_key()
             with open('mobi.b', 'wb') as file:
                 file.write(key)
@@ -222,9 +234,13 @@ class SignInWindow(Screen):
                 password = data.get('haslo')
                 password = password.encode()
                 password = f.encrypt(password)
+                web_url = web_url.encode()
+                web_url = f.encrypt(web_url)
                 file.write(login)
                 file.write(b'\n')
                 file.write(password)
+                file.write(b'\n')
+                file.write(web_url)
             self.parent.current = "main"
         else:
             self.screen = "sign in"
