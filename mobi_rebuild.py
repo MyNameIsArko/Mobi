@@ -80,6 +80,7 @@ def website(data, web_url):
                 red_names.append(parent.getchildren()[0].getchildren()[0].tail)
                 red_marks.append(parent.getchildren()[1].getchildren()[0].text)
         except IndexError:
+            'a'
             pass
     red_marks = SpaceRemover(red_marks)
     red_names = SpaceRemover(red_names)
