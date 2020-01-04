@@ -50,18 +50,21 @@ def website(data, web_url):
     global red_names
     web = requests.post(f'https://{web_url}.mobidziennik.pl/mobile/glowna', data=data)
     tree = html.fromstring(web.content)
-    last_marks = tree.xpath('//td[@class="page-dz-home-hist-cnt text-center"]/../..')[0]
-    last_marks = last_marks.getchildren()
-    last_marks = [mark.getchildren() for mark in last_marks][:6]
-    for i in range(6):
-        if i % 2 == 0:
-            last_marks_name.append(last_marks[i][1].text)
-            last_marks[i] = last_marks[i][2].text
-        else:
-            description.append(last_marks[i][0].getchildren()[0].getchildren()[0].getchildren()[2].getchildren()[0].tail)
-    last_marks = [mark for mark in last_marks if isinstance(mark, str)]
-    last_marks = SpaceRemover(last_marks)
-    last_marks_name = SpaceRemover(last_marks_name)
+    try:
+        last_marks = tree.xpath('//td[@class="page-dz-home-hist-cnt text-center"]/../..')[0]
+        last_marks = last_marks.getchildren()
+        last_marks = [mark.getchildren() for mark in last_marks][:6]
+        for i in range(6):
+            if i % 2 == 0:
+                last_marks_name.append(last_marks[i][1].text)
+                last_marks[i] = last_marks[i][2].text
+            else:
+                description.append(last_marks[i][0].getchildren()[0].getchildren()[0].getchildren()[2].getchildren()[0].tail)
+        last_marks = [mark for mark in last_marks if isinstance(mark, str)]
+        last_marks = SpaceRemover(last_marks)
+        last_marks_name = SpaceRemover(last_marks_name)
+    except IndexError:
+        last_marks = []
     web = requests.post(f'https://{web_url}.mobidziennik.pl/mobile/oceny', data=data)
     tree = html.fromstring(web.content)
     marks_avg = tree.xpath('//td[@class="text-right"]/text()')
@@ -135,6 +138,17 @@ class LastPopup(Popup):
         self.add_widget(Label(text=desc))
 
 
+class ErrorPopup(Popup):
+    def __init__(self, mess, *args, **kwargs):
+        super().__init__(**kwargs)
+        self.title = 'Błąd!'
+        self.title_align = 'center'
+        self.size_hint = [None, None]
+        self.width = 800
+        self.height = 400
+        self.add_widget(Label(text=mess))
+
+
 class MainWindow(Screen):
     def __init__(self, **kw):
         super().__init__(**kw)
@@ -149,7 +163,7 @@ class MainWindow(Screen):
 
         last_label = Label(text='Ostatnie oceny:', bold=True)
         box_main.add_widget(last_label)
-        for i in range(3):
+        for i in range(len(last_marks)):
             last_box = BoxLayout(orientation='horizontal', on_touch_down=self.test)
             name_label = Label(text=last_marks_name[i], text_size=(600, 200), valign='center', halign='right')
             mark_label = Label(text=last_marks[i])
@@ -216,33 +230,41 @@ class SignInWindow(Screen):
         self.add_widget(box_main)
 
     def sign(self, *args):
-        data = {'login': self.login_input.text, 'haslo': self.password_input.text}
-        web_url = self.web_url.text
-        web = requests.post(f'https://{web_url}.mobidziennik.pl/mobile/glowna', data=data)
-        tree = html.fromstring(web.content)
-        test = tree.xpath('//div[@id="p-login-info-text"]/text()')
-        if not test:
-            website(data, web_url)
-            key = Fernet.generate_key()
-            with open('mobi.b', 'wb') as file:
-                file.write(key)
-                file.write(b'\n')
-                f = Fernet(key)
-                login = data.get('login')
-                login = login.encode()
-                login = f.encrypt(login)
-                password = data.get('haslo')
-                password = password.encode()
-                password = f.encrypt(password)
-                web_url = web_url.encode()
-                web_url = f.encrypt(web_url)
-                file.write(login)
-                file.write(b'\n')
-                file.write(password)
-                file.write(b'\n')
-                file.write(web_url)
-            self.parent.current = "main"
-        else:
+        try:
+            data = {'login': self.login_input.text, 'haslo': self.password_input.text}
+            web_url = self.web_url.text
+            web = requests.post(f'https://{web_url}.mobidziennik.pl/mobile/glowna', data=data)
+            if web.url == f'https://mobidziennik.pl/zlyadres.php?adres={web_url}.mobidziennik.pl':
+                ErrorPopup('Podano zły adres!').open()
+            else:
+                tree = html.fromstring(web.content)
+                test = tree.xpath('//div[@id="p-login-info-text"]/text()')
+                if not test:
+                    website(data, web_url)
+                    key = Fernet.generate_key()
+                    with open('mobi.b', 'wb') as file:
+                        file.write(key)
+                        file.write(b'\n')
+                        f = Fernet(key)
+                        login = data.get('login')
+                        login = login.encode()
+                        login = f.encrypt(login)
+                        password = data.get('haslo')
+                        password = password.encode()
+                        password = f.encrypt(password)
+                        web_url = web_url.encode()
+                        web_url = f.encrypt(web_url)
+                        file.write(login)
+                        file.write(b'\n')
+                        file.write(password)
+                        file.write(b'\n')
+                        file.write(web_url)
+                    self.parent.current = "main"
+                else:
+                    ErrorPopup('Podano błędne dane logowania').open()
+                    self.screen = "sign in"
+        except UnicodeError:
+            ErrorPopup('Adres nie może być pusty').open()
             self.screen = "sign in"
 
 
