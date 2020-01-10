@@ -48,48 +48,51 @@ def website(data, web_url):
     global avg
     global red_marks
     global red_names
-    web = requests.post(f'https://{web_url}.mobidziennik.pl/mobile/glowna', data=data)
-    tree = html.fromstring(web.content)
     try:
-        last_marks = tree.xpath('//td[@class="page-dz-home-hist-cnt text-center"]/../..')[0]
-        last_marks = last_marks.getchildren()
-        last_marks = [mark.getchildren() for mark in last_marks][:6]
-        for i in range(6):
-            if i % 2 == 0:
-                last_marks_name.append(last_marks[i][1].text)
-                last_marks[i] = last_marks[i][2].text
-            else:
-                description.append(last_marks[i][0].getchildren()[0].getchildren()[0].getchildren()[2].getchildren()[0].tail)
-        last_marks = [mark for mark in last_marks if isinstance(mark, str)]
+        web = requests.post(f'https://{web_url}.mobidziennik.pl/mobile/glowna', data=data)
+        tree = html.fromstring(web.content)
+        root = tree.xpath('//td[@class="page-dz-home-hist-cnt"]/../..')
+        for i in root:
+            for y in i:
+                if y.get('class') == 'rowRolling':
+                    y = y.getchildren()[0].getchildren()[0].getchildren()[0].getchildren()
+                    for z in y:
+                        z = z.getchildren()[0]
+                        if z.text == 'Grupa:' or z.text == 'Rodzaj:' or z.text == 'Treść:':
+                            description.append(z.tail)
+                else:
+                    y = y.getchildren()[1:]
+                    for z in y:
+                        if z.get('class') == 'page-dz-home-hist-cnt':
+                            last_marks_name.append(z.text)
+                        else:
+                            last_marks.append(z.text)
+        last_marks = last_marks[:3]
+        last_marks_name = last_marks_name[:3]
+        description = description[:3]
         last_marks = SpaceRemover(last_marks)
         last_marks_name = SpaceRemover(last_marks_name)
-    except IndexError:
-        last_marks = []
+    except:
+        pass
     web = requests.post(f'https://{web_url}.mobidziennik.pl/mobile/oceny', data=data)
     tree = html.fromstring(web.content)
-    marks_avg = tree.xpath('//td[@class="text-right"]/text()')
-    marks_avg = SpaceRemover(marks_avg)
-    marks_avg_name = tree.xpath('//tr[@class="subject"]/td/text()')
+    root = tree.xpath('//tr[@class="subject"]/td/text()')
+    for i in root:
+        if i == 'godzina z wychowawcą':
+            marks_avg.append('')
+        try:
+            marks_avg.append(float(i))
+        except:
+            marks_avg_name.append(i)
     marks_avg_name = SpaceRemover(marks_avg_name)
-
     web = requests.post(f'https://{web_url}.mobidziennik.pl/mobile/oceny?semestr=1&koncowe', data=data)
     tree = html.fromstring(web.content)
-    path = tree.xpath('//td[@class="text-right"]')
-    for x in path:
-        y = x.getchildren()
-        try:
-            if y[0].get('class') == 'color-red':
-                parent = y[0].getparent().getparent()
-                red_names.append(parent.getchildren()[0].getchildren()[0].tail)
-                red_marks.append(parent.getchildren()[1].getchildren()[0].text)
-        except IndexError:
-            pass
-    red_marks = SpaceRemover(red_marks)
-    red_names = SpaceRemover(red_names)
-
-    for i in range(len(marks_avg_name)):
-        if marks_avg_name[i] == 'godzina z wychowawcą':
-            marks_avg.insert(i, "")
+    root = tree.xpath('//span[@class="color-red"]/../..')
+    for i in root:
+        i = i.getchildren()
+        if i[0].text.strip() != 'Śródroczna':
+            red_names.append(i[0].getchildren()[0].tail.strip())
+            red_marks.append(i[1].getchildren()[0].text.strip())
     avg = 0
     avgCounter = 0
     for i in range(len(marks_avg)):
