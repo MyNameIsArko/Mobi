@@ -113,7 +113,7 @@ def website(data, web_url):
     tree = html.fromstring(web.content)
     root = tree.xpath('//tr[@class="subject"]/td/text()')
     for i in root:
-        if i == 'godzina z wychowawcą':
+        if i == 'godzina z wychowawcą' or i == 'Godzina wychowawcza':
             marks_avg.append('')
         try:
             marks_avg.append(float(i))
@@ -279,8 +279,8 @@ class MainWindow(Screen):
             box_main.add_widget(last_label)
             for i in range(len(last_marks)):
                 last_box = BoxLayout(orientation='horizontal', on_touch_down=self.test)
-                name_label = Label(text=last_marks_name[i], text_size=(600, 200), valign='center', halign='right')
-                mark_label = Label(text=last_marks[i])
+                name_label = Label(text=str(last_marks_name[i]), text_size=(600, 200), valign='center', halign='right')
+                mark_label = Label(text=str(last_marks[i]))
                 last_box.add_widget(name_label)
                 last_box.add_widget(mark_label)
                 box_main.add_widget(last_box)
@@ -290,19 +290,19 @@ class MainWindow(Screen):
 
             for i in range(len(marks_avg_name)):
                 mark_avg_box = BoxLayout(orientation='horizontal')
-                name_label = Label(text=marks_avg_name[i], text_size=(600, 200), valign='center', halign='right')
+                name_label = Label(text=str(marks_avg_name[i]), text_size=(600, 200), valign='center', halign='right')
                 try:
                     index = red_names.index(marks_avg_name[i])
-                    mark_avg_label = Label(text=red_marks[index], color=[1, 0, 0, 1])
+                    mark_avg_label = Label(text=str(red_marks[index]), color=[1, 0, 0, 1])
                 except ValueError:
-                    mark_avg_label = Label(text=marks_avg[i])
+                    mark_avg_label = Label(text=str(marks_avg[i]))
                 mark_avg_box.add_widget(name_label)
                 mark_avg_box.add_widget(mark_avg_label)
                 box_main.add_widget(mark_avg_box)
             avg_box = BoxLayout(orientation='horizontal')
             avg_name_label = Label(text='Srednia polroczna:', text_size=(600, 200), valign='center', halign='right',
                                    bold=True)
-            avg_label = Label(text=avg)
+            avg_label = Label(text=str(avg))
             avg_box.add_widget(avg_name_label)
             avg_box.add_widget(avg_label)
             box_main.add_widget(avg_box)
@@ -311,8 +311,8 @@ class MainWindow(Screen):
             timetable.add_widget(Label(text=f'[b]{lessons[2]}[/b]', markup=True, font_size=55))
             for i, j in zip(lessons[0], lessons[1]):
                 lh = BoxLayout(orientation='horizontal')
-                lh.add_widget(Label(text=i, text_size=(500, 200), valign='center', halign='right'))
-                lh.add_widget(Label(text=j))
+                lh.add_widget(Label(text=str(i), text_size=(500, 200), valign='center', halign='right'))
+                lh.add_widget(Label(text=str(j)))
                 timetable.add_widget(lh)
             carousel.add_widget(timetable)
             self.add_widget(carousel)
