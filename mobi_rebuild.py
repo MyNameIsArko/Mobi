@@ -8,7 +8,9 @@ from kivy.uix.widget import Widget
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
 from kivy.uix.popup import Popup
+from kivy.uix.carousel import Carousel
 from cryptography.fernet import Fernet
+from datetime import date, datetime
 
 
 def SpaceRemover(tab):
@@ -25,7 +27,7 @@ def SpaceRemover(tab):
 def correct_mark(mark):
     if len(mark) > 1:
         if mark[1] == '-':
-            new_mark = f'{int(mark[0])-1}.75'
+            new_mark = f'{int(mark[0]) - 1}.75'
             return new_mark
         if mark[1] == '+':
             new_mark = f'{int(mark[0])}.50'
@@ -34,9 +36,41 @@ def correct_mark(mark):
         return mark
 
 
+def get_day(string):
+    day = ''
+    for i in string:
+        try:
+            int(i)
+            day += i
+        except ValueError:
+            break
+    return int(day)
+
+
+def get_month(index):
+    months = ['', 'stycznia', 'lutego', 'marca', 'kwietnia', 'maja', 'czerwca', 'lipca', 'sierpnia', 'września',
+              'października', 'listopada', 'grudnia']
+    return months[index]
+
+
+def get_classroom(tail):
+    tail = tail.strip()
+    i = len(tail) - 1
+    room = []
+    while i > 0:
+        if tail[i] == '(':
+            room.insert(0, tail[i])
+            break
+        else:
+            room.insert(0, tail[i])
+        i -= 1
+    return ''.join(room)
+
+
 isFile = False
 last_marks, last_marks_name, description, marks_avg, marks_avg_name, avg = [], [], [], [], [], ''
 red_names, red_marks = [], []
+lessons = [[], [], []]
 
 
 def website(data, web_url):
@@ -48,48 +82,52 @@ def website(data, web_url):
     global avg
     global red_marks
     global red_names
-    web = requests.post(f'https://{web_url}.mobidziennik.pl/mobile/glowna', data=data)
-    tree = html.fromstring(web.content)
+    global lessons
     try:
-        last_marks = tree.xpath('//td[@class="page-dz-home-hist-cnt text-center"]/../..')[0]
-        last_marks = last_marks.getchildren()
-        last_marks = [mark.getchildren() for mark in last_marks][:6]
-        for i in range(6):
-            if i % 2 == 0:
-                last_marks_name.append(last_marks[i][1].text)
-                last_marks[i] = last_marks[i][2].text
-            else:
-                description.append(last_marks[i][0].getchildren()[0].getchildren()[0].getchildren()[2].getchildren()[0].tail)
-        last_marks = [mark for mark in last_marks if isinstance(mark, str)]
+        web = requests.post(f'https://{web_url}.mobidziennik.pl/mobile/glowna', data=data)
+        tree = html.fromstring(web.content)
+        root = tree.xpath('//td[@class="page-dz-home-hist-cnt"]/../..')
+        for i in root:
+            for y in i:
+                if y.get('class') == 'rowRolling':
+                    y = y.getchildren()[0].getchildren()[0].getchildren()[0].getchildren()
+                    for z in y:
+                        z = z.getchildren()[0]
+                        if z.text == 'Grupa:' or z.text == 'Rodzaj:' or z.text == 'Treść:':
+                            description.append(z.tail)
+                else:
+                    y = y.getchildren()[1:]
+                    for z in y:
+                        if z.get('class') == 'page-dz-home-hist-cnt':
+                            last_marks_name.append(z.text)
+                        else:
+                            last_marks.append(z.text)
+        last_marks = last_marks[:3]
+        last_marks_name = last_marks_name[:3]
+        description = description[:3]
         last_marks = SpaceRemover(last_marks)
         last_marks_name = SpaceRemover(last_marks_name)
-    except IndexError:
-        last_marks = []
+    except:
+        pass
     web = requests.post(f'https://{web_url}.mobidziennik.pl/mobile/oceny', data=data)
     tree = html.fromstring(web.content)
-    marks_avg = tree.xpath('//td[@class="text-right"]/text()')
-    marks_avg = SpaceRemover(marks_avg)
-    marks_avg_name = tree.xpath('//tr[@class="subject"]/td/text()')
+    root = tree.xpath('//tr[@class="subject"]/td/text()')
+    for i in root:
+        if i == 'godzina z wychowawcą':
+            marks_avg.append('')
+        try:
+            marks_avg.append(float(i))
+        except:
+            marks_avg_name.append(i)
     marks_avg_name = SpaceRemover(marks_avg_name)
-
     web = requests.post(f'https://{web_url}.mobidziennik.pl/mobile/oceny?semestr=1&koncowe', data=data)
     tree = html.fromstring(web.content)
-    path = tree.xpath('//td[@class="text-right"]')
-    for x in path:
-        y = x.getchildren()
-        try:
-            if y[0].get('class') == 'color-red':
-                parent = y[0].getparent().getparent()
-                red_names.append(parent.getchildren()[0].getchildren()[0].tail)
-                red_marks.append(parent.getchildren()[1].getchildren()[0].text)
-        except IndexError:
-            pass
-    red_marks = SpaceRemover(red_marks)
-    red_names = SpaceRemover(red_names)
-
-    for i in range(len(marks_avg_name)):
-        if marks_avg_name[i] == 'godzina z wychowawcą':
-            marks_avg.insert(i, "")
+    root = tree.xpath('//span[@class="color-red"]/../..')
+    for i in root:
+        i = i.getchildren()
+        if i[0].text.strip() != 'Śródroczna':
+            red_names.append(i[0].getchildren()[0].tail.strip())
+            red_marks.append(i[1].getchildren()[0].text.strip())
     avg = 0
     avgCounter = 0
     for i in range(len(marks_avg)):
@@ -103,6 +141,89 @@ def website(data, web_url):
             avg += float(przedmiot)
             avgCounter += 1
     avg = str(avg / avgCounter)[:4]
+
+    web = requests.post(f'https://{web_url}.mobidziennik.pl/mobile/planlekcji?typ=podstawowy', data=data)
+    tree = html.fromstring(web.content)
+    root = tree.xpath('//td[@class="padding-l-15"]/span/strong')
+    found = 0
+    for i in root:
+        lessons_date = \
+            i.getparent().getparent().getparent().getparent().getparent().getparent().getparent().getparent().getparent().getchildren()[
+                0].getchildren()[0].getchildren()[0].tail
+        lessons_date = lessons_date.strip()[3:]
+        today = date.today().day
+        day_name = \
+            i.getparent().getparent().getparent().getparent().getparent().getparent().getparent().getparent().getparent().getchildren()[
+                0].getchildren()[0].getchildren()[0].text.lower()
+        lessons_date = get_day(lessons_date)
+        time = datetime.now().time().hour
+        if time > 16:
+            if lessons_date == today + 1 and found == 0 or lessons_date == today + 1 and found == lessons_date:
+                hour = i.getparent().getparent().getparent().getparent().getparent().getparent().getchildren()[
+                    0].getchildren()[0].tail.strip()
+                room = i.getparent().getchildren()[1].tail
+                room = get_classroom(room)
+                lessons[0].append(f'{i.text}{room}')
+                lessons[1].append(hour)
+                lessons[2] = f'Plan lekcji na {day_name}'
+                found = lessons_date
+            elif lessons_date == today + 2 and found == 0 or lessons_date == today + 2 and found == lessons_date:
+                hour = i.getparent().getparent().getparent().getparent().getparent().getparent().getchildren()[
+                    0].getchildren()[0].tail.strip()
+                room = i.getparent().getchildren()[1].tail
+                room = get_classroom(room)
+                lessons[0].append(f'{i.text}{room}')
+                lessons[1].append(hour)
+                lessons[2] = f'Plan lekcji na {day_name}'
+                found = lessons_date
+            elif lessons_date == today + 3 and found == 0 or lessons_date == today + 3 and found == lessons_date:
+                hour = i.getparent().getparent().getparent().getparent().getparent().getparent().getchildren()[
+                    0].getchildren()[0].tail.strip()
+                room = i.getparent().getchildren()[1].tail
+                room = get_classroom(room)
+                lessons[0].append(f'{i.text}{room}')
+                lessons[1].append(hour)
+                lessons[2] = f'Plan lekcji na {day_name}'
+                found = lessons_date
+        else:
+            if lessons_date == today and found == 0 or lessons_date == today and found == lessons_date:
+                hour = i.getparent().getparent().getparent().getparent().getparent().getparent().getchildren()[
+                    0].getchildren()[0].tail.strip()
+                room = i.getparent().getchildren()[1].tail
+                room = get_classroom(room)
+                lessons[0].append(f'{i.text}{room}')
+                lessons[1].append(hour)
+                lessons[2].append('Plan lekcji na dziś:')
+                found = lessons_date
+            elif lessons_date == today + 1 and found == 0 or lessons_date == today + 1 and found == lessons_date:
+                hour = i.getparent().getparent().getparent().getparent().getparent().getparent().getchildren()[
+                    0].getchildren()[0].tail.strip()
+                room = i.getparent().getchildren()[1].tail
+                room = get_classroom(room)
+                lessons[0].append(f'{i.text}{room}')
+                lessons[1].append(hour)
+                lessons[2] = f'Plan lekcji na {day_name}'
+                found = lessons_date
+            elif lessons_date == today + 2 and found == 0 or lessons_date == today + 2 and found == lessons_date:
+                hour = i.getparent().getparent().getparent().getparent().getparent().getparent().getchildren()[
+                    0].getchildren()[0].tail.strip()
+                room = i.getparent().getchildren()[1].tail
+                room = get_classroom(room)
+                lessons[0].append(f'{i.text}{room}')
+                lessons[1].append(hour)
+                lessons[2] = f'Plan lekcji na {day_name}'
+                found = lessons_date
+
+
+class ErrorPopup(Popup):
+    def __init__(self, mess, *args, **kwargs):
+        super().__init__(**kwargs)
+        self.title = 'Błąd!'
+        self.title_align = 'center'
+        self.size_hint = [None, None]
+        self.width = 800
+        self.height = 400
+        self.add_widget(Label(text=mess))
 
 
 try:
@@ -123,6 +244,8 @@ try:
         website(data, web_url)
 except FileNotFoundError:
     isFile = False
+except Exception as e:
+    ErrorPopup(str(e)).open()
 
 
 class LastPopup(Popup):
@@ -138,17 +261,6 @@ class LastPopup(Popup):
         self.add_widget(Label(text=desc))
 
 
-class ErrorPopup(Popup):
-    def __init__(self, mess, *args, **kwargs):
-        super().__init__(**kwargs)
-        self.title = 'Błąd!'
-        self.title_align = 'center'
-        self.size_hint = [None, None]
-        self.width = 800
-        self.height = 400
-        self.add_widget(Label(text=mess))
-
-
 class MainWindow(Screen):
     def __init__(self, **kw):
         super().__init__(**kw)
@@ -159,41 +271,53 @@ class MainWindow(Screen):
             LastPopup(args[0]).open()
 
     def on_pre_enter(self, *args):
-        box_main = BoxLayout(orientation='vertical')
+        try:
+            carousel = Carousel(direction='right')
+            box_main = BoxLayout(orientation='vertical')
 
-        last_label = Label(text='Ostatnie oceny:', bold=True)
-        box_main.add_widget(last_label)
-        for i in range(len(last_marks)):
-            last_box = BoxLayout(orientation='horizontal', on_touch_down=self.test)
-            name_label = Label(text=last_marks_name[i], text_size=(600, 200), valign='center', halign='right')
-            mark_label = Label(text=last_marks[i])
-            last_box.add_widget(name_label)
-            last_box.add_widget(mark_label)
-            box_main.add_widget(last_box)
+            last_label = Label(text='Ostatnie oceny:', bold=True)
+            box_main.add_widget(last_label)
+            for i in range(len(last_marks)):
+                last_box = BoxLayout(orientation='horizontal', on_touch_down=self.test)
+                name_label = Label(text=last_marks_name[i], text_size=(600, 200), valign='center', halign='right')
+                mark_label = Label(text=last_marks[i])
+                last_box.add_widget(name_label)
+                last_box.add_widget(mark_label)
+                box_main.add_widget(last_box)
 
-        marks_avg_label = Label(text='Srednie ocen z przedmiotow:', bold=True)
-        box_main.add_widget(marks_avg_label)
+            marks_avg_label = Label(text='Srednie ocen z przedmiotow:', bold=True)
+            box_main.add_widget(marks_avg_label)
 
-        for i in range(len(marks_avg_name)):
-            mark_avg_box = BoxLayout(orientation='horizontal')
-            name_label = Label(text=marks_avg_name[i], text_size=(600, 200), valign='center', halign='right')
-            try:
-                index = red_names.index(marks_avg_name[i])
-                mark_avg_label = Label(text=red_marks[index], color=[1, 0, 0, 1])
-            except ValueError:
-                mark_avg_label = Label(text=marks_avg[i])
-            mark_avg_box.add_widget(name_label)
-            mark_avg_box.add_widget(mark_avg_label)
-            box_main.add_widget(mark_avg_box)
-        avg_box = BoxLayout(orientation='horizontal')
-        avg_name_label = Label(text='Srednia polroczna:', text_size=(600, 200), valign='center', halign='right',
-                               bold=True)
-        avg_label = Label(text=avg)
-        avg_box.add_widget(avg_name_label)
-        avg_box.add_widget(avg_label)
-        box_main.add_widget(avg_box)
-
-        self.add_widget(box_main)
+            for i in range(len(marks_avg_name)):
+                mark_avg_box = BoxLayout(orientation='horizontal')
+                name_label = Label(text=marks_avg_name[i], text_size=(600, 200), valign='center', halign='right')
+                try:
+                    index = red_names.index(marks_avg_name[i])
+                    mark_avg_label = Label(text=red_marks[index], color=[1, 0, 0, 1])
+                except ValueError:
+                    mark_avg_label = Label(text=marks_avg[i])
+                mark_avg_box.add_widget(name_label)
+                mark_avg_box.add_widget(mark_avg_label)
+                box_main.add_widget(mark_avg_box)
+            avg_box = BoxLayout(orientation='horizontal')
+            avg_name_label = Label(text='Srednia polroczna:', text_size=(600, 200), valign='center', halign='right',
+                                   bold=True)
+            avg_label = Label(text=avg)
+            avg_box.add_widget(avg_name_label)
+            avg_box.add_widget(avg_label)
+            box_main.add_widget(avg_box)
+            carousel.add_widget(box_main)
+            timetable = BoxLayout(orientation='vertical')
+            timetable.add_widget(Label(text=f'[b]{lessons[2]}[/b]', markup=True, font_size=55))
+            for i, j in zip(lessons[0], lessons[1]):
+                lh = BoxLayout(orientation='horizontal')
+                lh.add_widget(Label(text=i, text_size=(500, 200), valign='center', halign='right'))
+                lh.add_widget(Label(text=j))
+                timetable.add_widget(lh)
+            carousel.add_widget(timetable)
+            self.add_widget(carousel)
+        except Exception as e:
+            ErrorPopup(str(e)).open()
 
 
 class SignInWindow(Screen):
