@@ -116,7 +116,7 @@ def website(data, web_url):
     tree = html.fromstring(web.content)
     root = tree.xpath('//tr[@class="subject"]/td/text()')
     for i in root:
-        if i == 'godzina z wychowawcą' or i == 'Godzina wychowawcza' or i == 'Zajęcia z wychowawcą':
+        if 'wychowaw' in i:
             marks_avg.append('')
         try:
             marks_avg.append(float(i))
@@ -167,10 +167,11 @@ def website(data, web_url):
                 room = i.getparent().getchildren()[1].tail
                 room = get_classroom(room)
                 if i.getparent().get('style') == 'text-decoration: line-through;opacity:0.8;':
-                    lessons[0].append(f'[s]{i.text}{room}[/s]')
+                    lessons[0].append(f'[s][color=#ff0000]{i.text}{room}[/color][/s]')
+                    lessons[1].append(f'[s][color=#ff0000]{hour}[/color][/s]')
                 else:
                     lessons[0].append(f'{i.text}{room}')
-                lessons[1].append(hour)
+                    lessons[1].append(hour)
                 lessons[2] = f'Plan lekcji na {day_name}'
                 found = lessons_date
             elif lessons_date == today + 2 and found == 0 or lessons_date == today + 2 and found == lessons_date:
@@ -179,10 +180,11 @@ def website(data, web_url):
                 room = i.getparent().getchildren()[1].tail
                 room = get_classroom(room)
                 if i.getparent().get('style') == 'text-decoration: line-through;opacity:0.8;':
-                    lessons[0].append(f'[s]{i.text}{room}[/s]')
+                    lessons[0].append(f'[s][color=#ff0000]{i.text}{room}[/color][/s]')
+                    lessons[1].append(f'[s][color=#ff0000]{hour}[/color][/s]')
                 else:
                     lessons[0].append(f'{i.text}{room}')
-                lessons[1].append(hour)
+                    lessons[1].append(hour)
                 lessons[2] = f'Plan lekcji na {day_name}'
                 found = lessons_date
             elif lessons_date == today + 3 and found == 0 or lessons_date == today + 3 and found == lessons_date:
@@ -191,10 +193,11 @@ def website(data, web_url):
                 room = i.getparent().getchildren()[1].tail
                 room = get_classroom(room)
                 if i.getparent().get('style') == 'text-decoration: line-through;opacity:0.8;':
-                    lessons[0].append(f'[s]{i.text}{room}[/s]')
+                    lessons[0].append(f'[s][color=#ff0000]{i.text}{room}[/color][/s]')
+                    lessons[1].append(f'[s][color=#ff0000]{hour}[/color][/s]')
                 else:
                     lessons[0].append(f'{i.text}{room}')
-                lessons[1].append(hour)
+                    lessons[1].append(hour)
                 lessons[2] = f'Plan lekcji na {day_name}'
                 found = lessons_date
         else:
@@ -204,10 +207,11 @@ def website(data, web_url):
                 room = i.getparent().getchildren()[1].tail
                 room = get_classroom(room)
                 if i.getparent().get('style') == 'text-decoration: line-through;opacity:0.8;':
-                    lessons[0].append(f'[s]{i.text}{room}[/s]')
+                    lessons[0].append(f'[s][color=#ff0000]{i.text}{room}[/color][/s]')
+                    lessons[1].append(f'[s][color=#ff0000]{hour}[/color][/s]')
                 else:
                     lessons[0].append(f'{i.text}{room}')
-                lessons[1].append(hour)
+                    lessons[1].append(hour)
                 lessons[2] = 'Plan lekcji na dziś:'
                 found = lessons_date
             elif lessons_date == today + 1 and found == 0 or lessons_date == today + 1 and found == lessons_date:
@@ -216,10 +220,11 @@ def website(data, web_url):
                 room = i.getparent().getchildren()[1].tail
                 room = get_classroom(room)
                 if i.getparent().get('style') == 'text-decoration: line-through;opacity:0.8;':
-                    lessons[0].append(f'[s]{i.text}{room}[/s]')
+                    lessons[0].append(f'[s][color=#ff0000]{i.text}{room}[/color][/s]')
+                    lessons[1].append(f'[s][color=#ff0000]{hour}[/color][/s]')
                 else:
                     lessons[0].append(f'{i.text}{room}')
-                lessons[1].append(hour)
+                    lessons[1].append(hour)
                 lessons[2] = f'Plan lekcji na {day_name}'
                 found = lessons_date
             elif lessons_date == today + 2 and found == 0 or lessons_date == today + 2 and found == lessons_date:
@@ -228,10 +233,11 @@ def website(data, web_url):
                 room = i.getparent().getchildren()[1].tail
                 room = get_classroom(room)
                 if i.getparent().get('style') == 'text-decoration: line-through;opacity:0.8;':
-                    lessons[0].append(f'[s]{i.text}{room}[/s]')
+                    lessons[0].append(f'[s][color=#ff0000]{i.text}{room}[/color][/s]')
+                    lessons[1].append(f'[s][color=#ff0000]{hour}[/color][/s]')
                 else:
                     lessons[0].append(f'{i.text}{room}')
-                lessons[1].append(hour)
+                    lessons[1].append(hour)
                 lessons[2] = f'Plan lekcji na {day_name}'
                 found = lessons_date
 
@@ -353,7 +359,7 @@ class MainWindow(Screen):
             for i, j in zip(lessons[0], lessons[1]):
                 lh = BoxLayout(orientation='horizontal')
                 lh.add_widget(Label(text=str(i), markup=True, text_size=(500, 200), valign='center', halign='right'))
-                lh.add_widget(Label(text=str(j)))
+                lh.add_widget(Label(text=str(j), markup=True))
                 timetable.add_widget(lh)
             carousel.add_widget(timetable)
             exam_box = BoxLayout(orientation='vertical')
