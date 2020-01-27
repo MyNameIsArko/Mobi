@@ -69,7 +69,8 @@ def get_classroom(tail):
 
 isFile = False
 last_marks, last_marks_name, description, marks_avg, marks_avg_name, avg = [], [], [], [], [], ''
-red_names, red_marks = [], []
+marks2_avg, avg2 = [], ''
+red_names, red_marks, red_names2, red_marks2 = [], [], [], []
 lessons = [[], [], []]
 homeworks, exams = [], []
 
@@ -80,7 +81,11 @@ def website(data, web_url):
     global description
     global marks_avg
     global marks_avg_name
+    global marks2_avg
     global avg
+    global avg2
+    global red_marks2
+    global red_names2
     global red_marks
     global red_names
     global lessons
@@ -114,15 +119,25 @@ def website(data, web_url):
         pass
     web = requests.post(f'https://{web_url}.mobidziennik.pl/mobile/oceny', data=data)
     tree = html.fromstring(web.content)
-    root = tree.xpath('//tr[@class="subject"]/td/text()')
+    root = tree.xpath('//tr[@class="subject"]/td')
     for i in root:
-        if 'wychowaw' in i:
-            marks_avg.append('')
         try:
-            marks_avg.append(float(i))
-        except:
-            marks_avg_name.append(i)
+            i = float(i.text.strip())
+        except ValueError:
+            if i.text.strip() != '':
+                marks_avg_name.append(i.text)
+                marks_avg.append(i.getparent().getchildren()[2].text.strip())
     marks_avg_name = SpaceRemover(marks_avg_name)
+    web = requests.post(f'https://{web_url}.mobidziennik.pl/mobile/oceny?semestr=2', data=data)
+    tree = html.fromstring(web.content)
+    root = tree.xpath('//tr[@class="subject"]/td')
+    for i in root:
+        try:
+            i = float(i.text.strip())
+        except ValueError:
+            if i.text.strip() != '':
+                marks2_avg.append(i.getparent().getchildren()[2].text.strip())
+
     web = requests.post(f'https://{web_url}.mobidziennik.pl/mobile/oceny?semestr=1&koncowe', data=data)
     tree = html.fromstring(web.content)
     root = tree.xpath('//span[@class="color-red"]/../..')
@@ -141,9 +156,39 @@ def website(data, web_url):
                 przedmiot = correct_mark(przedmiot)
             except ValueError:
                 przedmiot = marks_avg[i]
-            avg += float(przedmiot)
-            avgCounter += 1
+            try:
+                przedmiot = float(przedmiot)
+                avg += float(przedmiot)
+                avgCounter += 1
+            except ValueError:
+                pass
     avg = str(avg / avgCounter)[:4]
+
+    web = requests.post(f'https://{web_url}.mobidziennik.pl/mobile/oceny?semestr=2&koncowe', data=data)
+    tree = html.fromstring(web.content)
+    root = tree.xpath('//span[@class="color-red"]/../..')
+    for i in root:
+        i = i.getchildren()
+        if i[0].text.strip() != 'Śródroczna':
+            red_names2.append(i[0].getchildren()[0].tail.strip())
+            red_marks2.append(i[1].getchildren()[0].text.strip())
+    avg2 = 0
+    avgCounter = 0
+    for i in range(len(marks2_avg)):
+        if marks2_avg[i] != "":
+            try:
+                index = red_names2.index(marks_avg_name[i])
+                przedmiot = red_marks2[index]
+                przedmiot = correct_mark(przedmiot)
+            except ValueError:
+                przedmiot = marks2_avg[i]
+            try:
+                przedmiot = float(przedmiot)
+                avg2 += float(przedmiot)
+                avgCounter += 1
+            except ValueError:
+                pass
+    avg2 = str(avg2 / avgCounter)[:4]
 
     web = requests.post(f'https://{web_url}.mobidziennik.pl/mobile/planlekcji?typ=podstawowy', data=data)
     tree = html.fromstring(web.content)
@@ -167,8 +212,16 @@ def website(data, web_url):
                 room = i.getparent().getchildren()[1].tail
                 room = get_classroom(room)
                 if i.getparent().get('style') == 'text-decoration: line-through;opacity:0.8;':
-                    lessons[0].append(f'[s][color=#ff0000]{i.text}{room}[/color][/s]')
-                    lessons[1].append(f'[s][color=#ff0000]{hour}[/color][/s]')
+                    tbody = i.getparent().getparent().getparent().getparent().getchildren()
+                    if len(tbody) > 1:
+                        change_name = tbody[1].getchildren()[0].getchildren()[3].text
+                        room = tbody[1].getchildren()[0].getchildren()[5].text
+                        room = get_classroom(room)
+                        lessons[0].append(f'[color=#ffff00]{change_name}{room}[/color]')
+                        lessons[1].append(f'[color=#ffff00]{hour}[/color]')
+                    else:
+                        lessons[0].append(f'[s][color=#ff0000]{i.text}{room}[/color][/s]')
+                        lessons[1].append(f'[s][color=#ff0000]{hour}[/color][/s]')
                 else:
                     lessons[0].append(f'{i.text}{room}')
                     lessons[1].append(hour)
@@ -180,8 +233,16 @@ def website(data, web_url):
                 room = i.getparent().getchildren()[1].tail
                 room = get_classroom(room)
                 if i.getparent().get('style') == 'text-decoration: line-through;opacity:0.8;':
-                    lessons[0].append(f'[s][color=#ff0000]{i.text}{room}[/color][/s]')
-                    lessons[1].append(f'[s][color=#ff0000]{hour}[/color][/s]')
+                    tbody = i.getparent().getparent().getparent().getparent().getchildren()
+                    if len(tbody) > 1:
+                        change_name = tbody[1].getchildren()[0].getchildren()[3].text
+                        room = tbody[1].getchildren()[0].getchildren()[5].text
+                        room = get_classroom(room)
+                        lessons[0].append(f'[color=#ffff00]{change_name}{room}[/color]')
+                        lessons[1].append(f'[color=#ffff00]{hour}[/color]')
+                    else:
+                        lessons[0].append(f'[s][color=#ff0000]{i.text}{room}[/color][/s]')
+                        lessons[1].append(f'[s][color=#ff0000]{hour}[/color][/s]')
                 else:
                     lessons[0].append(f'{i.text}{room}')
                     lessons[1].append(hour)
@@ -193,8 +254,37 @@ def website(data, web_url):
                 room = i.getparent().getchildren()[1].tail
                 room = get_classroom(room)
                 if i.getparent().get('style') == 'text-decoration: line-through;opacity:0.8;':
-                    lessons[0].append(f'[s][color=#ff0000]{i.text}{room}[/color][/s]')
-                    lessons[1].append(f'[s][color=#ff0000]{hour}[/color][/s]')
+                    tbody = i.getparent().getparent().getparent().getparent().getchildren()
+                    if len(tbody) > 1:
+                        change_name = tbody[1].getchildren()[0].getchildren()[3].text
+                        room = tbody[1].getchildren()[0].getchildren()[5].text
+                        room = get_classroom(room)
+                        lessons[0].append(f'[color=#ffff00]{change_name}{room}[/color]')
+                        lessons[1].append(f'[color=#ffff00]{hour}[/color]')
+                    else:
+                        lessons[0].append(f'[s][color=#ff0000]{i.text}{room}[/color][/s]')
+                        lessons[1].append(f'[s][color=#ff0000]{hour}[/color][/s]')
+                else:
+                    lessons[0].append(f'{i.text}{room}')
+                    lessons[1].append(hour)
+                lessons[2] = f'Plan lekcji na {day_name}'
+                found = lessons_date
+            elif lessons_date == today + 4 and found == 0 or lessons_date == today + 4 and found == lessons_date:
+                hour = i.getparent().getparent().getparent().getparent().getparent().getparent().getchildren()[
+                    0].getchildren()[0].tail.strip()
+                room = i.getparent().getchildren()[1].tail
+                room = get_classroom(room)
+                if i.getparent().get('style') == 'text-decoration: line-through;opacity:0.8;':
+                    tbody = i.getparent().getparent().getparent().getparent().getchildren()
+                    if len(tbody) > 1:
+                        change_name = tbody[1].getchildren()[0].getchildren()[3].text
+                        room = tbody[1].getchildren()[0].getchildren()[5].text
+                        room = get_classroom(room)
+                        lessons[0].append(f'[color=#ffff00]{change_name}{room}[/color]')
+                        lessons[1].append(f'[color=#ffff00]{hour}[/color]')
+                    else:
+                        lessons[0].append(f'[s][color=#ff0000]{i.text}{room}[/color][/s]')
+                        lessons[1].append(f'[s][color=#ff0000]{hour}[/color][/s]')
                 else:
                     lessons[0].append(f'{i.text}{room}')
                     lessons[1].append(hour)
@@ -207,8 +297,16 @@ def website(data, web_url):
                 room = i.getparent().getchildren()[1].tail
                 room = get_classroom(room)
                 if i.getparent().get('style') == 'text-decoration: line-through;opacity:0.8;':
-                    lessons[0].append(f'[s][color=#ff0000]{i.text}{room}[/color][/s]')
-                    lessons[1].append(f'[s][color=#ff0000]{hour}[/color][/s]')
+                    tbody = i.getparent().getparent().getparent().getparent().getchildren()
+                    if len(tbody) > 1:
+                        change_name = tbody[1].getchildren()[0].getchildren()[3].text
+                        room = tbody[1].getchildren()[0].getchildren()[5].text
+                        room = get_classroom(room)
+                        lessons[0].append(f'[color=#ffff00]{change_name}{room}[/color]')
+                        lessons[1].append(f'[color=#ffff00]{hour}[/color]')
+                    else:
+                        lessons[0].append(f'[s][color=#ff0000]{i.text}{room}[/color][/s]')
+                        lessons[1].append(f'[s][color=#ff0000]{hour}[/color][/s]')
                 else:
                     lessons[0].append(f'{i.text}{room}')
                     lessons[1].append(hour)
@@ -220,8 +318,16 @@ def website(data, web_url):
                 room = i.getparent().getchildren()[1].tail
                 room = get_classroom(room)
                 if i.getparent().get('style') == 'text-decoration: line-through;opacity:0.8;':
-                    lessons[0].append(f'[s][color=#ff0000]{i.text}{room}[/color][/s]')
-                    lessons[1].append(f'[s][color=#ff0000]{hour}[/color][/s]')
+                    tbody = i.getparent().getparent().getparent().getparent().getchildren()
+                    if len(tbody) > 1:
+                        change_name = tbody[1].getchildren()[0].getchildren()[3].text
+                        room = tbody[1].getchildren()[0].getchildren()[5].text
+                        room = get_classroom(room)
+                        lessons[0].append(f'[color=#ffff00]{change_name}{room}[/color]')
+                        lessons[1].append(f'[color=#ffff00]{hour}[/color]')
+                    else:
+                        lessons[0].append(f'[s][color=#ff0000]{i.text}{room}[/color][/s]')
+                        lessons[1].append(f'[s][color=#ff0000]{hour}[/color][/s]')
                 else:
                     lessons[0].append(f'{i.text}{room}')
                     lessons[1].append(hour)
@@ -233,8 +339,16 @@ def website(data, web_url):
                 room = i.getparent().getchildren()[1].tail
                 room = get_classroom(room)
                 if i.getparent().get('style') == 'text-decoration: line-through;opacity:0.8;':
-                    lessons[0].append(f'[s][color=#ff0000]{i.text}{room}[/color][/s]')
-                    lessons[1].append(f'[s][color=#ff0000]{hour}[/color][/s]')
+                    tbody = i.getparent().getparent().getparent().getparent().getchildren()
+                    if len(tbody) > 1:
+                        change_name = tbody[1].getchildren()[0].getchildren()[3].text
+                        room = tbody[1].getchildren()[0].getchildren()[5].text
+                        room = get_classroom(room)
+                        lessons[0].append(f'[color=#ffff00]{change_name}{room}[/color]')
+                        lessons[1].append(f'[color=#ffff00]{hour}[/color]')
+                    else:
+                        lessons[0].append(f'[s][color=#ff0000]{i.text}{room}[/color][/s]')
+                        lessons[1].append(f'[s][color=#ff0000]{hour}[/color][/s]')
                 else:
                     lessons[0].append(f'{i.text}{room}')
                     lessons[1].append(hour)
@@ -309,31 +423,75 @@ class LastPopup(Popup):
 
 
 class MainWindow(Screen):
+    first_half = True
+
     def __init__(self, **kw):
         super().__init__(**kw)
         self.name = 'main'
 
-    def test(self, *args):
+    def show_description(self, *args):
         if args[0].collide_point(args[1].x, args[1].y):
             LastPopup(args[0]).open()
+
+    def change_half(self, *args):
+        if args[0].collide_point(args[1].x, args[1].y):
+            length = len(args[0].children) - 3
+            if self.first_half:
+                i = 0
+                once = False
+                self.first_half = False
+                for parent in args[0].children:
+                    if not once:
+                        parent.children[0].text = avg2
+                        once = True
+                    elif i != 10:
+                        try:
+                            index = red_names2.index(marks_avg_name[length - i])
+                            parent.children[0].text = red_marks2[index]
+                            parent.children[0].color = [1, 0, 0, 1]
+                        except ValueError:
+                            parent.children[0].text = marks2_avg[length - i]
+                            parent.children[0].color = [1, 1, 1, 1]
+                        i += 1
+            else:
+                i = 0
+                once = False
+                self.first_half = True
+                for parent in args[0].children:
+                    if not once:
+                        parent.children[0].text = avg
+                        once = True
+                    elif i != 10:
+                        try:
+                            index = red_names.index(marks_avg_name[length - i])
+                            parent.children[0].text = red_marks[index]
+                            parent.children[0].color = [1, 0, 0, 1]
+                        except ValueError:
+                            parent.children[0].text = marks_avg[length - i]
+                            parent.children[0].color = [1, 1, 1, 1]
+                        i += 1
 
     def on_pre_enter(self, *args):
         try:
             carousel = Carousel(direction='right', loop=True)
             box_main = BoxLayout(orientation='vertical')
 
-            last_label = Label(text='Ostatnie oceny:', bold=True)
+            last_label = Label(text='Ostatnie oceny:', bold=True, font_size=55)
             box_main.add_widget(last_label)
             for i in range(len(last_marks)):
-                last_box = BoxLayout(orientation='horizontal', on_touch_down=self.test)
+                last_box = BoxLayout(orientation='horizontal', on_touch_down=self.show_description)
                 name_label = Label(text=str(last_marks_name[i]), text_size=(600, 200), valign='center', halign='right')
-                mark_label = Label(text=str(last_marks[i]))
+                mark_label = Label(text=str(last_marks[i]), text_size=(None, 200), valign='center')
                 last_box.add_widget(name_label)
                 last_box.add_widget(mark_label)
                 box_main.add_widget(last_box)
+            if len(last_marks) < 3:
+                box_main.add_widget(Widget())
 
-            marks_avg_label = Label(text='Srednie ocen z przedmiotow:', bold=True)
-            box_main.add_widget(marks_avg_label)
+            box_marks = BoxLayout(orientation='vertical', on_touch_down=self.change_half, size_hint_y=None, height=1400)
+
+            marks_avg_label = Label(text='Srednie ocen z przedmiotow:', bold=True, font_size=55)
+            box_marks.add_widget(marks_avg_label)
 
             for i in range(len(marks_avg_name)):
                 mark_avg_box = BoxLayout(orientation='horizontal')
@@ -345,14 +503,16 @@ class MainWindow(Screen):
                     mark_avg_label = Label(text=str(marks_avg[i]))
                 mark_avg_box.add_widget(name_label)
                 mark_avg_box.add_widget(mark_avg_label)
-                box_main.add_widget(mark_avg_box)
+                box_marks.add_widget(mark_avg_box)
             avg_box = BoxLayout(orientation='horizontal')
             avg_name_label = Label(text='Srednia polroczna:', text_size=(600, 200), valign='center', halign='right',
                                    bold=True)
             avg_label = Label(text=str(avg))
             avg_box.add_widget(avg_name_label)
             avg_box.add_widget(avg_label)
-            box_main.add_widget(avg_box)
+
+            box_marks.add_widget(avg_box)
+            box_main.add_widget(box_marks)
             carousel.add_widget(box_main)
             timetable = BoxLayout(orientation='vertical')
             timetable.add_widget(Label(text=f'[b]{lessons[2]}[/b]', markup=True, font_size=55))
@@ -393,10 +553,9 @@ class SignInWindow(Screen):
         super().__init__(**kw)
         self.name = "sign in"
         box_main = BoxLayout(orientation='vertical', padding=50, spacing=100)
-        box_main.add_widget(Widget(size_hint_y=None, height=200))
         web_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=70, pos_hint={'top': 1})
         web_label = Label(text='Adres:')
-        self.web_url = TextInput(multiline=False, size_hint_x=None, width=400)
+        self.web_url = TextInput(multiline=False, size_hint_x=None, width=250)
         web_end = Label(text='.mobidziennik.pl', size_hint_x=None, width=400)
         web_box.add_widget(web_label)
         web_box.add_widget(self.web_url)
