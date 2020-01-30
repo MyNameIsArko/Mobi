@@ -18,3 +18,7 @@ class Mobi:
         self.homeworks = []
         self.exams = []
         self.isFile = False
+        self.teachers = []
+        self.message_titles = []
+        self.message_sender = []
+        self.messages = []
