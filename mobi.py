@@ -21,4 +21,11 @@ class Mobi:
         self.teachers = []
         self.message_titles = []
         self.message_sender = []
+        self.message_date = []
+        self.message_id = []
         self.messages = []
+        self.message_opened = []
+        self.web_url = ""
+        self.data = {}
+        self.link_text = []
+        self.links = []

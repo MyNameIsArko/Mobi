@@ -1,7 +1,5 @@
 import asyncio
-
 from cryptography.fernet import Fernet
-
 from functions import *
 import requests
 from kivy.app import App
@@ -14,8 +12,13 @@ from kivy.uix.label import Label
 from kivy.uix.popup import Popup
 from kivy.uix.carousel import Carousel
 from lxml import html
-
+import traceback
 from mobi import Mobi
+
+# Android modules
+from android.permissions import request_permissions, Permission
+
+request_permissions([Permission.WRITE_EXTERNAL_STORAGE])
 
 mobi = Mobi()
 
@@ -28,7 +31,7 @@ class ErrorPopup(Popup):
         self.size_hint = [None, None]
         self.width = 800
         self.height = 400
-        self.add_widget(Label(text=mess))
+        self.add_widget(Label(text=mess, text_size=(800, None), halign="center"))
 
 
 try:
@@ -46,6 +49,8 @@ try:
         web_url = file.readline()
         web_url = f.decrypt(web_url)
         web_url = web_url.decode()
+        mobi.web_url = web_url
+        mobi.data = data
         asyncio.get_event_loop().run_until_complete(
             asyncio.gather(
                 get_last_marks(mobi, data, web_url),
@@ -59,21 +64,34 @@ try:
         )
 except FileNotFoundError:
     mobi.isFile = False
-except Exception as e:
-    ErrorPopup(str(e)).open()
+except requests.exceptions.ConnectionError:
+    ErrorPopup("Brak połączenia z internetem!").open()
+except Exception:
+    ErrorPopup(str(traceback.format_exc())).open()
+
+
+class LoadingPopup(Popup):
+    def __init__(self, *a, **kw):
+        super().__init__(**kw)
+        self.title = "Ładowanie"
+        self.auto_dismiss = False
+        self.title_align = "center"
+        self.size_hint = [None, None]
+        self.width = 800
+        self.height = 400
+        self.add_widget(Label(text="Trwa wczytywanie...\nProszę czekać"))
 
 
 class LastPopup(Popup):
-    def __init__(self, text, *args, **kwargs):
+    def __init__(self, text, index, *args, **kwargs):
         super().__init__(**kwargs)
         self.title = text
         self.title_align = "center"
         self.size_hint = [None, None]
         self.width = 800
         self.height = 400
-        index = mobi.last_marks_name.index(text)
         desc = mobi.description[index]
-        self.add_widget(Label(text=desc))
+        self.add_widget(Label(text=desc, text_size=(780, None), halign="center"))
 
 
 class TeacherPopup(Popup):
@@ -96,7 +114,27 @@ class MessagePopup(Popup):
         self.size_hint = [None, None]
         self.width = 900
         self.height = 1600
-        self.add_widget(Label(text=text, text_size=(800, None)))
+        box_main = BoxLayout(orientation='vertical')
+        for i in range(len(text)):
+            box_main.add_widget(Label(text=text[i], text_size=(800, None), markup=True, on_ref_press=self.load_link))
+        self.add_widget(box_main)
+
+    def load_link(self, *a):
+        intiger = 0
+        try:
+            for i in range(len(mobi.messages)):
+                if len(mobi.messages[i]) > 0:
+                    try:
+                        index = mobi.messages[i].index(a[0].text) - 1
+                        intiger = i
+                        break
+                    except ValueError:
+                        pass
+            file = requests.post(a[1], data=mobi.data)
+            open(f'/sdcard/Download/{mobi.link_text[intiger][index]}', 'wb').write(file.content)
+            TeacherPopup(mobi.link_text[intiger][index], 'Pobrano plik').open()
+        except Exception as e:
+            ErrorPopup(str(e)).open()
 
 
 class MainWindow(Screen):
@@ -108,7 +146,12 @@ class MainWindow(Screen):
 
     def show_description(self, *args):
         if args[0].collide_point(args[1].x, args[1].y):
-            LastPopup(args[0].children[1].text).open()
+            index = (
+                    len(args[0].parent.children)
+                    - args[0].parent.children.index(args[0])
+                    - 2
+            )
+            LastPopup(args[0].children[1].text, index).open()
 
     def show_teacher(self, *args):
         if args[0].collide_point(args[1].x, args[1].y):
@@ -121,7 +164,8 @@ class MainWindow(Screen):
                 for i in range(len(lesson)):
                     if not found:
                         if lesson[i] == "]":
-                            found = True
+                            if lesson[i + 1] != "[":
+                                found = True
                     else:
                         if lesson[i] != "(":
                             tab += lesson[i]
@@ -138,12 +182,32 @@ class MainWindow(Screen):
 
             TeacherPopup(lesson, mobi.teachers[index]).open()
 
-    def show_message(self, *args):
+    def load_message(self, *args):
         if args[0].collide_point(args[1].x, args[1].y):
-            index = mobi.message_titles.index(args[0].text)
+            self.loading_pop = LoadingPopup()
+            self.loading_pop.bind(on_open=self.get_message)
+            self.arg = args[0]
+            self.loading_pop.open()
+
+    def get_message(self, *args):
+        index = mobi.message_titles.index(self.arg.children[2].text)
+        try:
+            asyncio.get_event_loop().run_until_complete(
+                show_message(
+                    mobi, mobi.web_url, mobi.data, mobi.message_id[index], index
+                )
+            )
+            self.arg.children[0].color = [1, 1, 1, 1]
+            self.arg.children[1].color = [1, 1, 1, 1]
+            self.arg.children[2].color = [1, 1, 1, 1]
+            self.loading_pop.dismiss()
             MessagePopup(
-                f"{args[0].text} - {mobi.message_sender[index]}", mobi.messages[index]
+                f"{self.arg.children[2].text} - {mobi.message_sender[index]}",
+                mobi.messages[index],
             ).open()
+        except requests.exceptions.ConnectionError:
+            self.loading_pop.dismiss()
+            ErrorPopup("Brak połączenia z internetem!").open()
 
     def change_half(self, *args):
         if args[0].collide_point(args[1].x, args[1].y):
@@ -156,7 +220,7 @@ class MainWindow(Screen):
                     if not once:
                         parent.children[0].text = mobi.avg2
                         once = True
-                    elif i != 10:
+                    elif i != length + 1:
                         try:
                             index = mobi.red_names2.index(
                                 mobi.marks_avg_name[length - i]
@@ -286,9 +350,63 @@ class MainWindow(Screen):
                 Label(text="[b]Wiadomości:[/b]", font_size=55, markup=True)
             )
             for i in range(len(mobi.message_titles)):
-                mess_box.add_widget(
-                    Label(text=mobi.message_titles[i], on_touch_down=self.show_message)
+                mess_container = BoxLayout(
+                    orientation="horizontal", on_touch_down=self.load_message
                 )
+                if mobi.message_opened[i]:
+                    mess_container.add_widget(
+                        Label(
+                            text=mobi.message_titles[i],
+                            text_size=(350, None),
+                            valign="center",
+                            halign="right",
+                        )
+                    )
+                    mess_container.add_widget(
+                        Label(
+                            text=mobi.message_date[i],
+                            text_size=(350, None),
+                            valign="center",
+                            halign="center",
+                        )
+                    )
+                    mess_container.add_widget(
+                        Label(
+                            text=mobi.message_sender[i],
+                            text_size=(350, None),
+                            valign="center",
+                            halign="left",
+                        )
+                    )
+                else:
+                    mess_container.add_widget(
+                        Label(
+                            text=mobi.message_titles[i],
+                            text_size=(350, None),
+                            valign="center",
+                            halign="right",
+                            color=[0.2, 0.2, 0.9, 1],
+                        )
+                    )
+                    mess_container.add_widget(
+                        Label(
+                            text=mobi.message_date[i],
+                            text_size=(350, None),
+                            valign="center",
+                            halign="center",
+                            color=[0.2, 0.2, 1, 1],
+                        )
+                    )
+                    mess_container.add_widget(
+                        Label(
+                            text=mobi.message_sender[i],
+                            text_size=(350, None),
+                            valign="center",
+                            halign="left",
+                            color=[0.2, 0.2, 1, 1],
+                        )
+                    )
+                mess_box.add_widget(mess_container)
             carousel.add_widget(mess_box)
             exam_box = BoxLayout(orientation="vertical")
             exam_box.add_widget(
@@ -324,8 +442,8 @@ class MainWindow(Screen):
             container.add_widget(Widget())
             carousel.add_widget(container)
             self.add_widget(carousel)
-        except Exception as e:
-            ErrorPopup(str(e)).open()
+        except Exception:
+            ErrorPopup(str(traceback.format_exc())).open()
 
 
 class SignInWindow(Screen):
@@ -360,11 +478,16 @@ class SignInWindow(Screen):
         box_main.add_widget(password_box)
 
         sign_button = Button(
-            text="Zaloguj", on_press=self.sign, size_hint_y=None, height=140
+            text="Zaloguj", on_press=self.loading, size_hint_y=None, height=140
         )
         box_main.add_widget(sign_button)
         box_main.add_widget(Widget())
         self.add_widget(box_main)
+
+    def loading(self, *args):
+        self.loading_pop = LoadingPopup()
+        self.loading_pop.bind(on_open=self.sign)
+        self.loading_pop.open()
 
     def sign(self, *args):
         try:
@@ -374,9 +497,10 @@ class SignInWindow(Screen):
                 f"https://{web_url}.mobidziennik.pl/mobile/glowna", data=data
             )
             if (
-                web.url
-                == f"https://mobidziennik.pl/zlyadres.php?adres={web_url}.mobidziennik.pl"
+                    web.url
+                    == f"https://mobidziennik.pl/zlyadres.php?adres={web_url}.mobidziennik.pl"
             ):
+                self.loading_pop.dismiss()
                 ErrorPopup("Podano zły adres!").open()
             else:
                 tree = html.fromstring(web.content)
@@ -393,6 +517,8 @@ class SignInWindow(Screen):
                             get_messages(mobi, data, web_url),
                         )
                     )
+                    mobi.web_url = web_url
+                    mobi.data = data
                     key = Fernet.generate_key()
                     with open("mobi.b", "wb") as file:
                         file.write(key)
@@ -411,13 +537,17 @@ class SignInWindow(Screen):
                         file.write(password)
                         file.write(b"\n")
                         file.write(web_url)
+                    self.loading_pop.dismiss()
                     self.parent.current = "main"
                 else:
+                    self.loading_pop.dismiss()
                     ErrorPopup("Podano błędne dane logowania").open()
         except UnicodeError:
+            self.loading_pop.dismiss()
             ErrorPopup("Adres nie może być pusty").open()
-        except Exception as e:
-            ErrorPopup(str(e)).open()
+        except Exception:
+            self.loading_pop.dismiss()
+            ErrorPopup(str(traceback.format_exc())).open()
 
 
 class WindowManager(ScreenManager):

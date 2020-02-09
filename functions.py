@@ -391,55 +391,8 @@ async def get_timetables(mobi, data, web_url):
                     mobi.lessons[1].append(hour)
                 mobi.lessons[2] = f"Plan lekcji na {day_name}"
                 found = lessons_date
-            elif (
-                lessons_date == today + 4
-                and found == 0
-                or lessons_date == today + 4
-                and found == lessons_date
-            ):
-                hour = (
-                    i.getparent()
-                    .getparent()
-                    .getparent()
-                    .getparent()
-                    .getparent()
-                    .getparent()
-                    .getchildren()[0]
-                    .getchildren()[0]
-                    .tail.strip()
-                )
-                room = i.getparent().getchildren()[1].tail
-                teacher = await get_teacher(room)
-                room = await get_classroom(room)
-                if (
-                    i.getparent().get("style")
-                    == "text-decoration: line-through;opacity:0.8;"
-                ):
-                    tbody = (
-                        i.getparent().getparent().getparent().getparent().getchildren()
-                    )
-                    if len(tbody) > 1:
-                        change_name = tbody[1].getchildren()[0].getchildren()[3].text
-                        room = tbody[1].getchildren()[0].getchildren()[5].text
-                        teacher = await get_teacher(room)
-                        room = await get_classroom(room)
-                        mobi.teachers.append(teacher)
-                        mobi.lessons[0].append(
-                            f"[color=#ffff00]{change_name}{room}[/color]"
-                        )
-                        mobi.lessons[1].append(f"[color=#ffff00]{hour}[/color]")
-                    else:
-                        mobi.teachers.append(teacher)
-                        mobi.lessons[0].append(
-                            f"[s][color=#ff0000]{i.text}{room}[/color][/s]"
-                        )
-                        mobi.lessons[1].append(f"[s][color=#ff0000]{hour}[/color][/s]")
-                else:
-                    mobi.teachers.append(teacher)
-                    mobi.lessons[0].append(f"{i.text}{room}")
-                    mobi.lessons[1].append(hour)
-                mobi.lessons[2] = f"Plan lekcji na {day_name}"
-                found = lessons_date
+            elif found == 0:
+                mobi.lessons[2] = "Weekend!"
         else:
             if (
                 lessons_date == today
@@ -625,35 +578,77 @@ async def get_messages(mobi, data, web_url):
     tree = html.fromstring(web.content)
     root = tree.xpath('//div[@class="brd"]')[:5]
     for message in root:
+        if message.getparent().getparent().get("class") == "act":
+            mobi.message_opened.append(False)
+        else:
+            mobi.message_opened.append(True)
+        mobi.messages.append([])
+        mobi.link_text.append([])
         mobi.message_titles.append(message.tail.strip())
         mobi.message_sender.append(
             message.getparent().getparent().getchildren()[2].text.strip()
         )
+        mess_date = ""
+        first = False
+        for x in message.getparent().getparent().getchildren()[3].text.strip():
+            if x == ",":
+                if first:
+                    break
+                else:
+                    first = True
+                    mess_date += x
+            else:
+                mess_date += x
+        mobi.message_date.append(mess_date)
         id = message.getparent().getparent().get("data-page")
+        mobi.message_id.append(id)
+
+
+async def show_message(mobi, web_url, data, id, index, *args):
+    if len(mobi.messages[index]) == 0:
         message_web = requests.post(
             f"https://{web_url}.mobidziennik.pl/mobile/{id}", data=data
         )
         message_root = html.fromstring(message_web.content)
-        message_root = message_root.xpath('//div[@class="acc-elm-body"]')[
-            0
-        ].getchildren()[:-1]
-        if len(message_root) > 1:
-            full_message = ""
-            for mess in message_root:
+        message_root = message_root.xpath('//div[@class="acc-elm-body"]')[0].getchildren()[
+            :-1
+        ]
+        full_message = ""
+        for mess in message_root:
+            try:
+                mess = mess.getchildren()[0].getchildren()[0].getchildren()[0].getchildren()[0].getchildren()[0].getchildren()[0]
+            except:
                 try:
-                    full_message += (
-                        mess.getchildren()[0].getchildren()[0].getchildren()[0].text
-                    )
-                    full_message += "\n"
-                except IndexError:
+                    mess += mess.getchildren()[0].getchildren()[0].getchildren()[0].getchildren()[0].getchildren()[0]
+                except:
                     try:
-                        full_message += mess.getchildren()[0].getchildren()[0].text
-                    except IndexError:
+                        mess += mess.getchildren()[0].getchildren()[0].getchildren()[0].getchildren()[0]
+                    except:
                         try:
-                            full_message += mess.getchildren()[0].text
-                        except IndexError:
-                            full_message += mess.text
-                    full_message += "\n"
-            mobi.messages.append(full_message)
-        else:
-            mobi.messages.append(message_root[0].text)
+                            mess += mess.getchildren()[0].getchildren()[0].getchildren()[0]
+                        except:
+                            try:
+                                mess += mess.getchildren()[0].getchildren()[0]
+                            except:
+                                try:
+                                    mess += mess.getchildren()[0]
+                                except:
+                                    pass
+            try:
+                if mess.text.strip() != '' and mess.text is not None:
+                    mobi.messages[index].append(mess.text)
+                if mess.getchildren()[0].tail.strip() != '' and mess.tail is not None:
+                    mobi.messages[index].append(mess.getchildren()[0].tail)
+            except:
+                pass
+        link_web = requests.post(f"https://{web_url}.mobidziennik.pl/mobile/{id}", data=data)
+        link_root = html.fromstring(link_web.content)
+        link_root = link_root.xpath('//tr[@class="big"]')
+        for link in link_root:
+            link_url = link.get('onclick')
+            link_url = link_url.replace("window.open(\'", '')
+            link_url = link_url.replace("',\'_blank\')", '')
+            link_text = link.getchildren()[1].text
+            mobi.link_text[index].append(link_text)
+
+            mobi.messages[index].append(f'[color=#32CD32][ref={link_url}]{link_text}[/ref][/color]\n')
