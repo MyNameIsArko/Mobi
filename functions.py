@@ -613,7 +613,6 @@ async def show_message(mobi, web_url, data, id, index, *args):
         message_root = message_root.xpath('//div[@class="acc-elm-body"]')[0].getchildren()[
             :-1
         ]
-        full_message = ""
         for mess in message_root:
             try:
                 mess = mess.getchildren()[0].getchildren()[0].getchildren()[0].getchildren()[0].getchildren()[0].getchildren()[0]
@@ -636,9 +635,9 @@ async def show_message(mobi, web_url, data, id, index, *args):
                                     pass
             try:
                 if mess.text.strip() != '' and mess.text is not None:
-                    mobi.messages[index].append(mess.text)
+                    mobi.messages[index].append(mess.text.strip())
                 if mess.getchildren()[0].tail.strip() != '' and mess.tail is not None:
-                    mobi.messages[index].append(mess.getchildren()[0].tail)
+                    mobi.messages[index].append(mess.getchildren()[0].tail.strip())
             except:
                 pass
         link_web = requests.post(f"https://{web_url}.mobidziennik.pl/mobile/{id}", data=data)
@@ -649,6 +648,6 @@ async def show_message(mobi, web_url, data, id, index, *args):
             link_url = link_url.replace("window.open(\'", '')
             link_url = link_url.replace("',\'_blank\')", '')
             link_text = link.getchildren()[1].text
-            mobi.link_text[index].append(link_text)
+            mobi.link_text[index].append(link_text.strip())
 
-            mobi.messages[index].append(f'[color=#32CD32][ref={link_url}]{link_text}[/ref][/color]\n')
+            mobi.messages[index].append(f'[color=#32CD32][ref={link_url}]{link_text}[/ref][/color]')

@@ -1,5 +1,7 @@
 import asyncio
 from cryptography.fernet import Fernet
+from kivy.lang import Builder
+
 from functions import *
 import requests
 from kivy.app import App
@@ -21,6 +23,26 @@ from android.permissions import request_permissions, Permission
 request_permissions([Permission.WRITE_EXTERNAL_STORAGE])
 
 mobi = Mobi()
+
+Builder.load_string('''
+<AutoLabel>:
+    size_hint_y: None
+    text_size: 800, None
+    height: self.texture_size[1]
+<AutoBoxLayout>:
+    size_hint_y: None
+    height: self.minimum_height
+    pos_hint: {'top': 1}
+    spacing: 30
+    padding: 30
+''')
+
+class AutoBoxLayout(BoxLayout):
+    pass
+
+
+class AutoLabel(Label):
+    pass
 
 
 class ErrorPopup(Popup):
@@ -94,7 +116,7 @@ class LastPopup(Popup):
         self.add_widget(Label(text=desc, text_size=(780, None), halign="center"))
 
 
-class TeacherPopup(Popup):
+class UniversalPopup(Popup):
     def __init__(self, title, text, *args, **kwargs):
         super().__init__(**kwargs)
         self.title = title
@@ -114,9 +136,11 @@ class MessagePopup(Popup):
         self.size_hint = [None, None]
         self.width = 900
         self.height = 1600
-        box_main = BoxLayout(orientation='vertical')
+
+        box_main = AutoBoxLayout(orientation='vertical', size_hint_y=None)
         for i in range(len(text)):
-            box_main.add_widget(Label(text=text[i], text_size=(800, None), markup=True, on_ref_press=self.load_link))
+            mess = AutoLabel(text=text[i].strip(), markup=True, on_ref_press=self.load_link)
+            box_main.add_widget(mess)
         self.add_widget(box_main)
 
     def load_link(self, *a):
@@ -125,14 +149,14 @@ class MessagePopup(Popup):
             for i in range(len(mobi.messages)):
                 if len(mobi.messages[i]) > 0:
                     try:
-                        index = mobi.messages[i].index(a[0].text) - 1
+                        index = mobi.messages[i].index(a[0].text.strip())-1
                         intiger = i
                         break
                     except ValueError:
                         pass
             file = requests.post(a[1], data=mobi.data)
             open(f'/sdcard/Download/{mobi.link_text[intiger][index]}', 'wb').write(file.content)
-            TeacherPopup(mobi.link_text[intiger][index], 'Pobrano plik').open()
+            UniversalPopup(mobi.link_text[intiger][index], 'Pobrano plik').open()
         except Exception as e:
             ErrorPopup(str(e)).open()
 
@@ -180,7 +204,7 @@ class MainWindow(Screen):
                         break
             lesson = tab
 
-            TeacherPopup(lesson, mobi.teachers[index]).open()
+            UniversalPopup(lesson, mobi.teachers[index]).open()
 
     def load_message(self, *args):
         if args[0].collide_point(args[1].x, args[1].y):
