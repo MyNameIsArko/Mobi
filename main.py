@@ -1,6 +1,10 @@
 import asyncio
+import webbrowser
+
 from cryptography.fernet import Fernet
 from kivy.lang import Builder
+from kivy.uix.behaviors import ButtonBehavior
+from kivy.uix.scrollview import ScrollView
 
 from functions import *
 import requests
@@ -18,9 +22,9 @@ import traceback
 from mobi import Mobi
 
 # Android modules
-from android.permissions import request_permissions, Permission
-
-request_permissions([Permission.WRITE_EXTERNAL_STORAGE])
+# from android.permissions import request_permissions, Permission
+#
+# request_permissions([Permission.WRITE_EXTERNAL_STORAGE])
 
 mobi = Mobi()
 
@@ -35,7 +39,14 @@ Builder.load_string('''
     pos_hint: {'top': 1}
     spacing: 30
     padding: 30
+<ButtonBox>:
+    orientation: 'horizontal'
 ''')
+
+
+class ButtonBox(ButtonBehavior, BoxLayout):
+    pass
+
 
 class AutoBoxLayout(BoxLayout):
     pass
@@ -149,7 +160,7 @@ class MessagePopup(Popup):
             for i in range(len(mobi.messages)):
                 if len(mobi.messages[i]) > 0:
                     try:
-                        index = mobi.messages[i].index(a[0].text.strip())-1
+                        index = mobi.messages[i].index(a[0].text.strip()) - 1
                         intiger = i
                         break
                     except ValueError:
@@ -157,6 +168,7 @@ class MessagePopup(Popup):
             file = requests.post(a[1], data=mobi.data)
             open(f'/sdcard/Download/{mobi.link_text[intiger][index]}', 'wb').write(file.content)
             UniversalPopup(mobi.link_text[intiger][index], 'Pobrano plik').open()
+            webbrowser.open_new(f'file://sdcard/Download/{mobi.link_text[intiger][index]}')
         except Exception as e:
             ErrorPopup(str(e)).open()
 
@@ -207,11 +219,10 @@ class MainWindow(Screen):
             UniversalPopup(lesson, mobi.teachers[index]).open()
 
     def load_message(self, *args):
-        if args[0].collide_point(args[1].x, args[1].y):
-            self.loading_pop = LoadingPopup()
-            self.loading_pop.bind(on_open=self.get_message)
-            self.arg = args[0]
-            self.loading_pop.open()
+        self.loading_pop = LoadingPopup()
+        self.loading_pop.bind(on_open=self.get_message)
+        self.arg = args[0]
+        self.loading_pop.open()
 
     def get_message(self, *args):
         index = mobi.message_titles.index(self.arg.children[2].text)
@@ -369,14 +380,13 @@ class MainWindow(Screen):
                 lh.add_widget(Label(text=str(j), markup=True))
                 timetable.add_widget(lh)
             carousel.add_widget(timetable)
-            mess_box = BoxLayout(orientation="vertical")
+            scroll = ScrollView()
+            mess_box = BoxLayout(orientation="vertical", size_hint_y=None, height=3500)
             mess_box.add_widget(
                 Label(text="[b]Wiadomości:[/b]", font_size=55, markup=True)
             )
             for i in range(len(mobi.message_titles)):
-                mess_container = BoxLayout(
-                    orientation="horizontal", on_touch_down=self.load_message
-                )
+                mess_container = ButtonBox(on_press=self.load_message)
                 if mobi.message_opened[i]:
                     mess_container.add_widget(
                         Label(
@@ -431,8 +441,9 @@ class MainWindow(Screen):
                         )
                     )
                 mess_box.add_widget(mess_container)
-            carousel.add_widget(mess_box)
-            exam_box = BoxLayout(orientation="vertical")
+            scroll.add_widget(mess_box)
+            carousel.add_widget(scroll)
+            exam_box = BoxLayout(orientation="vertical", spacing=50)
             exam_box.add_widget(
                 Label(text="[b]Sprawdziany:[/b]", markup=True, font_size=55)
             )
@@ -446,7 +457,7 @@ class MainWindow(Screen):
                 )
                 exam_cont.add_widget(Label(text=str(i[2]), text_size=(350, None)))
                 exam_box.add_widget(exam_cont)
-            homework_box = BoxLayout(orientation="vertical")
+            homework_box = BoxLayout(orientation="vertical", spacing=50)
             homework_box.add_widget(
                 Label(text="[b]Zadania domowe:[/b]", markup=True, font_size=55)
             )

@@ -576,7 +576,7 @@ async def get_messages(mobi, data, web_url):
         f"https://{web_url}.mobidziennik.pl/mobile/wiadomosci?js", data=data
     )
     tree = html.fromstring(web.content)
-    root = tree.xpath('//div[@class="brd"]')[:5]
+    root = tree.xpath('//div[@class="brd"]')
     for message in root:
         if message.getparent().getparent().get("class") == "act":
             mobi.message_opened.append(False)
